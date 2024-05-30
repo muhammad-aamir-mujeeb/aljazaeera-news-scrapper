@@ -1,10 +1,10 @@
 from collections import defaultdict
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
 from RPA.HTTP import HTTP
-from dateutil.parser import parse
+from dateutil.relativedelta import relativedelta
 from selenium.webdriver.common.by import By
 
 from aljazeera_news.locators import NewsLocators
@@ -15,7 +15,7 @@ from loggers import logger
 
 
 class AlJazeeraNewsScraper:
-    def __init__(self, search_text, threshold_date, no_of_months):
+    def __init__(self, search_text, no_of_months):
         """
         Initialize the Al Jazeera News Scraper.
         """
@@ -26,7 +26,7 @@ class AlJazeeraNewsScraper:
         self.search_text = search_text
         self.no_of_months = no_of_months
         self.site_url = 'https://www.aljazeera.com'
-        self.threshold_date = parse(threshold_date)
+        self.threshold_date = (datetime.today() + relativedelta(months=1 - max(no_of_months, 1))).replace(day=1)
 
     def open_browser(self):
         """Open browser to scrape data.
@@ -104,7 +104,7 @@ class AlJazeeraNewsScraper:
             target_file = f'{DOWNLOAD_DIRECTORY}/images/news-article-{idx + 1}.jpg'
             article_date = parse_date_from_string(description)
 
-            if not check_articles_within_date_range(article_date, self.threshold_date, self.no_of_months):
+            if not check_articles_within_date_range(article_date, self.threshold_date):
                 logger.info("Article date is not within the specified date range. Skipping further scraping.")
                 break
 

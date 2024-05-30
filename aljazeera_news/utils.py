@@ -5,7 +5,6 @@ import zipfile
 from datetime import datetime, timedelta, date
 
 from dateutil.parser import parse, ParserError
-from dateutil.relativedelta import relativedelta
 
 from config import DOWNLOAD_DIRECTORY
 from loggers import logger
@@ -72,20 +71,17 @@ def parse_date_from_string(date_str: str):
         logger.error(f"Failed to parse date: {str(e)}")
 
 
-def check_articles_within_date_range(article_date, threshold_date, date_range):
+def check_articles_within_date_range(article_date, threshold_date):
     """
     Check if articles' dates fall within the specified date range.
 
     Args:
         article_date (datetime): The date to check.
-        date_range (int, optional): Number of months before the current date. Defaults to 6.
         threshold_date (datetime): The minimum date to check for article existence.
 
     Returns:
         bool: True if articles' dates fall within the date range, False otherwise.
     """
-    date_range = max(date_range, 1)
-    threshold_date = (threshold_date + relativedelta(months=12 - date_range)).replace(day=1)
     return article_date >= threshold_date.date()
 
 
