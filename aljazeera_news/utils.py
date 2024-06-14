@@ -10,7 +10,7 @@ from config import DOWNLOAD_DIRECTORY
 from loggers import logger
 
 
-def parse_news_data(news_data: str):
+def parse_news_data(news_data: str) -> str:
     """
     Parse news data by removing "X days ago" and leading/trailing ellipses.
 
@@ -25,12 +25,12 @@ def parse_news_data(news_data: str):
         cleaned_string = ''.join(char for char in news_data if ord(char) < 128)
         cleaned_string = re.sub(re_pattern, '', cleaned_string)
         return cleaned_string.replace('...', '').strip()
-    except Exception as e:
+    except TypeError as e:
         logger.error(f"Failed to parse news data: {str(e)}")
         return news_data.replace('...', '').strip()
 
 
-def parse_date_from_string(date_str: str):
+def parse_date_from_string(date_str: str) -> date:
     """
     Parse date from a string.
 
@@ -40,8 +40,8 @@ def parse_date_from_string(date_str: str):
     Returns:
         datetime: The parsed date.
     """
+    formated_date = date.today()
     try:
-        formated_date = date.today()
         days_re_pattern = r'(\d+)\s+days?\s+ago'
         days_match = re.search(days_re_pattern, date_str)
         if days_match:
@@ -67,11 +67,12 @@ def parse_date_from_string(date_str: str):
                 pass
         return formated_date
 
-    except (ParserError, Exception) as e:
+    except (ParserError, TypeError) as e:
         logger.error(f"Failed to parse date: {str(e)}")
+        return formated_date
 
 
-def check_articles_within_date_range(article_date, threshold_date):
+def check_articles_within_date_range(article_date: date, threshold_date: datetime) -> bool:
     """
     Check if articles' dates fall within the specified date range.
 
@@ -85,7 +86,7 @@ def check_articles_within_date_range(article_date, threshold_date):
     return article_date >= threshold_date.date()
 
 
-def check_amount(text: str):
+def check_amount(text: str) -> list[str] | None:
     """
     Check if the text contains an amount.
 
@@ -99,7 +100,7 @@ def check_amount(text: str):
         amount_re_pattern = r'\$[\d,]+(?:\.\d+)?|\b\d+\s*dollars?\b|\b\d+\s*USD\b'
         match = re.findall(amount_re_pattern, text)
         return match
-    except Exception as e:
+    except TypeError as e:
         logger.error(f"Failed to check amount in text: {str(e)}")
         return None
 
@@ -120,5 +121,5 @@ def zip_and_remove_images_directory():
     try:
         shutil.rmtree(images_dir)
         logger.info(f"Directory {images_dir} removed successfully.")
-    except Exception as e:
+    except FileNotFoundError as e:
         logger.error(f"Error removing directory {images_dir}: {str(e)}")

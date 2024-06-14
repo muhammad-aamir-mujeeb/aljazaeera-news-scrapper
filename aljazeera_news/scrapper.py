@@ -1,9 +1,10 @@
 from collections import defaultdict
-from datetime import timedelta, datetime
+from datetime import datetime
 
 from RPA.Browser.Selenium import Selenium
 from RPA.Excel.Files import Files
 from RPA.HTTP import HTTP
+from SeleniumLibrary.errors import SeleniumLibraryException
 from dateutil.relativedelta import relativedelta
 from selenium.webdriver.common.by import By
 
@@ -15,7 +16,7 @@ from loggers import logger
 
 
 class AlJazeeraNewsScraper:
-    def __init__(self, search_text, no_of_months):
+    def __init__(self, search_text: str, no_of_months: int):
         """
         Initialize the Al Jazeera News Scraper.
         """
@@ -47,18 +48,24 @@ class AlJazeeraNewsScraper:
         and performs a search.
 
         """
-        logger.info("Opening search input field.")
-        self.browser.element_should_be_visible(
-            locator=NewsLocators.search_button,
-            message="Click here to search")
-        self.browser.click_button(locator=NewsLocators.search_trigger)
-        self.browser.input_text(locator=NewsLocators.search_input, text=self.search_text, clear=True)
-        logger.info(f"Search text '{self.search_text}' entered.")
-        self.browser.element_should_be_visible(
-            locator=NewsLocators.search_button_after_input,
-            message="Search")
-        self.browser.click_button(locator="class:css-sp7gd")
-        logger.info("Search performed.")
+        try:
+            logger.info("Opening search input field.")
+            self.browser.element_should_be_visible(
+                locator=NewsLocators.search_button,
+                message="Click here to search"
+            )
+            self.browser.click_button(locator=NewsLocators.search_trigger)
+            self.browser.input_text(locator=NewsLocators.search_input, text=self.search_text, clear=True)
+            logger.info(f"Search text '{self.search_text}' entered.")
+            self.browser.element_should_be_visible(
+                locator=NewsLocators.search_button_after_input,
+                message="Search"
+            )
+            self.browser.click_button(locator="class:css-sp7gd")
+            logger.info("Search performed.")
+        except AssertionError as e:
+            logger.error(f'Failed to open and search input field: {e}')
+            self.browser.close_browser()
 
     def load_and_sort_news_data(self):
         """
@@ -69,8 +76,8 @@ class AlJazeeraNewsScraper:
             an error occurs, the browser is closed.
         """
         try:
-            self.browser.set_selenium_implicit_wait(value=timedelta(seconds=50))
-            if self.browser.is_element_visible(locator=NewsLocators.is_results_available) is False:
+            self.browser.wait_until_page_contains_element(locator=NewsLocators.is_results_available, timeout=20)
+            if not self.browser.is_element_visible(locator=NewsLocators.is_results_available):
                 logger.info(f"No results found for search query: '{self.search_text}'")
                 self.browser.close_browser()
                 return
@@ -79,12 +86,13 @@ class AlJazeeraNewsScraper:
             logger.info(f"Clicked on the 'Sort' button to sort articles by date.")
 
             logger.info(f"Found results for search query: '{self.search_text}'")
-        except Exception as e:
+        except (AssertionError, SeleniumLibraryException) as e:
             logger.error("There is a problem with scraping data: %s", str(e))
             self.browser.close_browser()
             return
 
         self.click_show_more_button()
+        logger.info("All news articles loaded.")
 
     def scrap_news_data(self):
         """
@@ -94,6 +102,7 @@ class AlJazeeraNewsScraper:
         """
 
         logger.info("Starting to scrap news data.")
+        self.browser.wait_until_page_contains_element(NewsLocators.search_result)
         news_results = self.browser.find_elements(NewsLocators.search_result)
 
         for idx, element in enumerate(news_results):
@@ -138,19 +147,13 @@ class AlJazeeraNewsScraper:
             Raises:
                 Exception: If there's any error during the process.
         """
-        while True:
-            show_more = self.browser.does_page_contain_button(NewsLocators.show_more)
-            if not show_more:
-                break
-
-            try:
-                self.browser.wait_until_page_contains_element(locator=NewsLocators.show_more)
-                self.browser.execute_javascript(NewsLocators.scroll_page)
-                self.browser.click_element(locator=NewsLocators.show_more)
-            except Exception as e:
-                logger.error(f"Failed to click 'Show More' button: {str(e)}")
-
-        logger.info("All news articles loaded.")
+        try:
+            self.browser.wait_until_page_contains_element(locator=NewsLocators.show_more)
+            self.browser.execute_javascript(NewsLocators.scroll_page)
+            self.browser.click_element(locator=NewsLocators.show_more)
+            self.click_show_more_button()
+        except (AssertionError, SeleniumLibraryException):
+            logger.info("No more articles to load.")
 
     def create_excel_file_for_news_data(self):
         """
@@ -170,15 +173,11 @@ class AlJazeeraNewsScraper:
         for data_tuple in sorted_data:
             for key, value in data_tuple:
                 table_data[key].append(value)
+        file_path = f"{DOWNLOAD_DIRECTORY}/results.xlsx"
+        sheet = self.excel.create_workbook(file_path, fmt='xlsx')
 
-        try:
-            file_path = f"{DOWNLOAD_DIRECTORY}/results.xlsx"
-            sheet = self.excel.create_workbook(file_path, fmt='xlsx')
+        sheet.append_worksheet('Sheet', table_data, header=True, start=1)
+        sheet.save()
 
-            sheet.append_worksheet('Sheet', table_data, header=True, start=1)
-            sheet.save()
-
-            logger.info(f"News data saved into Excel file: {file_path}")
-            zip_and_remove_images_directory()
-        except Exception as e:
-            logger.error(f"Failed to save news data into Excel file: {str(e)}")
+        logger.info(f"News data saved into Excel file: {file_path}")
+        zip_and_remove_images_directory()
